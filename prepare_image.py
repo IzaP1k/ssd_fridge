@@ -237,3 +237,17 @@ def find_max_image_dimensions(folders):
                             max_image_path = image_path
 
     print(f"Max wymiary: {max_width}x{max_height} zdjęcia: {max_image_path}")
+
+def read_img(folder):
+
+    images = []
+
+    for filename in os.listdir(folder):
+        img = Image.read(os.path.join(folder, filename))
+        if img is not None:
+            images.append(img)
+
+    return images
+
+def read_annt():
+    pass
