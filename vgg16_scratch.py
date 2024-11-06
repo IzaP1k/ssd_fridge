@@ -135,7 +135,13 @@ def create_model(num_classes, num_epochs, batch_size, learning_rate):
 
     return model, criterion, optimizer
 
-def train_loop(model, criterion, optimizer, device, train_loader, valid_loader):
+def train_loop(model, criterion, optimizer, device, train_loader, valid_loader, name='special_name'):
+
+    result_dict = {}
+    result_dict['train_loss'] = []
+    result_dict['val_loss'] = []
+
+    best_loss = np.inf
 
     total_step = len(train_loader)
     # training loop
@@ -151,6 +157,8 @@ def train_loop(model, criterion, optimizer, device, train_loader, valid_loader):
             # print(images.shape)
             outputs = model(images)
             loss = criterion(outputs, labels)
+            result_dict['train_loss'].append(loss)
+
 
             # Backward and optimize
             optimizer.zero_grad()
@@ -171,13 +179,20 @@ def train_loop(model, criterion, optimizer, device, train_loader, valid_loader):
                 images = images.permute(0, 3, 1, 2)
                 outputs = model(images)
 
+                loss = criterion(outputs, labels)
+                result_dict['val_loss'].append(loss)
+                if loss < best_loss:
+                    torch.save(model.state_dict(), f'best-model-parameters-{name}.pt')
+
                 """print("output: ",outputs)
                 print("labels: ", labels)"""
 
-                errors_per_column = (outputs != labels).sum(dim=0)
+                round_outputs = torch.round(outputs)
+
+                errors_per_column = (round_outputs != labels).sum(dim=0)
 
                 # Średnia różnica między przewidywaniami a etykietami w każdej kolumnie
-                average_difference_per_column = torch.abs(outputs - labels).float().mean(dim=0)
+                average_difference_per_column = torch.abs(round_outputs - labels).float().mean(dim=0)
 
 
                 print("Liczba błędów przewidywań dla każdej kolumny:", errors_per_column)
@@ -186,7 +201,37 @@ def train_loop(model, criterion, optimizer, device, train_loader, valid_loader):
                 del images, labels, outputs
 
 
-    return model
+    return model, result_dict
+
+def test_model(model, test_loader, device):
+    model.eval()
+
+    with torch.no_grad():
+        correct = 0
+        total = 0
+        for images, labels in test_loader:
+            images = images.to(device)
+            labels = labels.to(device)
+            outputs = model(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+            for i in range(len(images)):
+                # tu  moz ebedzie trzeba dodac cpu()
+                img = images[i].numpy().transpose(
+                    (1, 2, 0))  # Convert to numpy and rearrange dimensions for plotting
+                actual_label = labels[i].item()
+                predicted_label = predicted[i].item()
+
+                plt.imshow(img)
+                plt.title(f"Predicted: {predicted_label}, Actual: {actual_label}")
+                plt.axis('off')
+                plt.show()
+
+
+            del images, labels, outputs
+
 def change_labels(train_annotations, valid_annotations, test_annotations):
     # Concatenate all annotations to create a unified DataFrame
     all_annotations = pd.concat([train_annotations, valid_annotations, test_annotations])
